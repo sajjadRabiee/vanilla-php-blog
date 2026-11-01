@@ -1,6 +1,6 @@
-# PHP Fundamentals: CRUD Project
+# vanilla-php-blog
 
-My first PHP project: a small Persian (RTL) blog panel built with **plain PHP + mysqli**, no framework.
+My first PHP project: a small Persian (RTL) blog panel built with **vanilla PHP + mysqli**, no framework.
 
 - Register / login / logout (sessions, hashed passwords)
 - Categories: create, list, delete
