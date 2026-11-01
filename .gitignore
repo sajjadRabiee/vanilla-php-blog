@@ -1,0 +1,7 @@
+.idea/
+.DS_Store
+
+# uploaded images
+images/*
+!images/.gitkeep
+.playwright-mcp/
