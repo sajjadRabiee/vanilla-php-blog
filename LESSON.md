@@ -24,24 +24,28 @@ the **real code from the first version**, explains why it is dangerous, and show
 
 ## 1. SQL injection → prepared statements
 
-**Before** (`PostsCRUD.php`):
+**Before** (`CategoriesCRUD.php`):
 
 ```php
 $id = $_GET['del'];
-mysqli_query($db, "DELETE FROM categories_posts WHERE id_post = '$id'");
-mysqli_query($db, "DELETE FROM posts WHERE id='$id'");
+mysqli_query($db, "DELETE FROM categories WHERE id=$id");
 ```
 
 **The problem:** the user's input is pasted *inside* the SQL text. Visit
-`PostsCRUD.php?del=1' OR '1'='1` and the query becomes:
+`CategoriesCRUD.php?del=1 OR 1=1` and the query becomes:
 
 ```sql
-DELETE FROM posts WHERE id='1' OR '1'='1'   -- deletes EVERY post of EVERY user
+DELETE FROM categories WHERE id=1 OR 1=1   -- deletes EVERY category of EVERY user
 ```
 
-The same problem was in login: a username like `alice' -- ` comments out the rest of the query.
+`$_GET['del']` didn't even go through `test_input()`. But `test_input()` would not have helped anyway:
 
-`test_input()` did **not** protect against this. `htmlspecialchars` is for HTML, not SQL.
+- `htmlspecialchars` is for **HTML**, not SQL. On PHP 8.1+ it happens to turn `'` into `&#039;`,
+  so string values like `'$username'` were *accidentally* protected. On PHP 8.0 and older, it left `'` alone,
+  so a username like `alice' -- ` could comment out the rest of the login query.
+- Numbers without quotes (`id=$id`) were never protected. `1 OR 1=1` contains no special HTML characters.
+
+Protection that works "by accident" is not protection.
 
 **After:** the SQL and the data travel separately. The `?` is a placeholder. The database
 knows the value is *data* and can never become *code*.
@@ -117,8 +121,14 @@ function test_input($data) {
 
 1. Data in the database is "dirty". `Tom & Jerry` is saved as `Tom &amp; Jerry`. If you later
    build a JSON API or an Excel export, you get `&amp;` everywhere.
-2. Some values were **never** escaped: the uploaded file name, `$_SESSION['image']`, and
-   `$_GET['del']`. One missed place is enough for an attacker.
+2. "Escaped" is not the same as "escaped *for this place*". The image file name went through
+   `test_input()`, and then it was printed inside a **single-quoted** attribute:
+   ```php
+   echo "<img src='../images/" . $row2['image'] . "' width='auto' height='30'>";
+   ```
+   Before PHP 8.1, `htmlspecialchars` did not escape `'` by default. So uploading a file named
+   `x' onerror='alert(1)'.png` broke out of `src='...'` and ran JavaScript for everyone who opened the page
+   (**stored XSS**). Escaping once at input can't know where the value will be printed later.
 3. `stripslashes` removes backslashes the user really typed. It is left over from PHP 5's "magic quotes".
 
 **After:** store the raw value. Escape it **at the moment you print it into HTML**, every time:
